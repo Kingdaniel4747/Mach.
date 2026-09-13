@@ -20,7 +20,6 @@ import android.widget.Toast;
 
 public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCallback {
     private static final int QR_REQUEST = 5510;
-    private static final int NFC_REQUEST = 5511;
     private NfcAdapter adapter;
     private TextView status;
     private String method;
@@ -37,7 +36,6 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
     private boolean scanning;
     private boolean completed;
     private boolean resumed;
-    private boolean nfcScannerOpen;
     private ScanPulseView pulse;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -55,7 +53,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);setIntent(intent);
-        blockedPackage=intent.getStringExtra("blockedPackage");completed=false;scanning=false;nfcBusy=false;nfcScannerOpen=false;
+        blockedPackage=intent.getStringExtra("blockedPackage");completed=false;scanning=false;nfcBusy=false;
         selectReason(BlockPolicy.reason(this,blockedPackage));buildUi();
     }
     private final Runnable checkExpiry=new Runnable() {
@@ -203,11 +201,6 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         if ("nfc".equals(method) && (adapter == null || !adapter.isEnabled())) {
             status.setText(adapter == null ? "Dieses Handy unterstützt kein NFC" : "Bitte NFC in den Schnelleinstellungen einschalten");
         }
-        if ("nfc".equals(method) && adapter != null && adapter.isEnabled()) {
-            Button scanner = smallButton("NFC-Scanner öffnen");
-            scanner.setOnClickListener(v -> openNfcScanner());
-            LinearLayout.LayoutParams scannerParams = match(dp(54)); scannerParams.topMargin = dp(18); root.addView(scanner, scannerParams);
-        }
         if (limitMode || scheduleMode) addUnlockDuration(root);
         int reward = AppBlockerStore.rewardMinutes(this);
         if ((limitMode || scheduleMode) && reward > 0) {
@@ -223,15 +216,6 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         if("qr".equals(method)) openQr();
     }
     private void openQr() { startActivityForResult(new Intent(this,QrScannerActivity.class).putExtra("expectedToken",AppBlockerStore.qrToken(this)),QR_REQUEST); }
-    private void openNfcScanner() {
-        if (!resumed || nfcScannerOpen || completed || !scanning || !"nfc".equals(method)) return;
-        String expected = AppBlockerStore.token(this);
-        if (expected.isEmpty()) expected = WakeKeyStore.token(this);
-        nfcScannerOpen = true;
-        startActivityForResult(new Intent(this, NfcTagActivity.class)
-            .putExtra("mode", expected.isEmpty() ? "enroll" : "scan")
-            .putExtra("expectedToken", expected).putExtra("purpose", "blocker"), NFC_REQUEST);
-    }
 
     @Override protected void onPause() {
         resumed = false;
@@ -257,19 +241,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == NFC_REQUEST) {
-            nfcScannerOpen = false;
-            if (resultCode == RESULT_OK && data != null) {
-                String token = data.getStringExtra("token");
-                if (AppBlockerStore.token(this).isEmpty() && token != null && !token.isEmpty()) AppBlockerStore.setToken(this, token);
-                if (WakeKeyStore.token(this).isEmpty() && token != null && !token.isEmpty()) WakeKeyStore.setToken(this, token);
-                completeUnlock(null);
-            } else if (status != null) {
-                status.setText("NFC-Scan abgebrochen · du bleibst im Tageslimit-Fenster.");
-                enableReader();
-            }
-        }
-        else if (requestCode == QR_REQUEST && resultCode == RESULT_OK) unlock();
+        if (requestCode == QR_REQUEST && resultCode == RESULT_OK) unlock();
         else if (requestCode == QR_REQUEST) status.setText("QR-Code noch nicht erkannt · erneut versuchen.");
     }
 
