@@ -22,10 +22,10 @@ Keine NFC-Kennungen, QR-Inhalte, Passwörter oder personenbezogenen Logs in öff
 
 ## Android-Backup
 
-Im Manifest ist `allowBackup=true` gesetzt. Android beziehungsweise der Gerätehersteller kann App-Daten deshalb je nach Systemeinstellungen sichern oder auf ein anderes Gerät übertragen. „Offline“ bedeutet hier: Die App selbst betreibt keine Datenübertragung zu einem eigenen Dienst; es ist keine Garantie gegen systemseitige Sicherungen. Wer diese nicht möchte, muss die Backup-Einstellungen seines Geräts prüfen.
+Die automatische Android-Cloud-Sicherung und die Übernahme der App-Daten auf ein anderes Gerät sind deaktiviert. MACH schließt dafür auf älteren und neueren Android-Versionen sämtliche internen Speicherbereiche aus. Ein Backup entsteht nur, wenn es in MACH bewusst als Datei exportiert wird.
 
 ## Löschen
 
-Deinstallation oder „App-Daten löschen“ entfernt lokale App-Daten. Vor einem normalen Update nicht deinstallieren. Vorhandene systemseitige Backups werden dadurch nicht zwingend ebenfalls gelöscht.
+Deinstallation oder „App-Daten löschen“ entfernt die lokalen App-Daten. Selbst exportierte MACH-Backup-Dateien bleiben als eigene Dateien erhalten und können bei Bedarf manuell gelöscht werden. Vor einem normalen Update muss die App nicht deinstalliert werden.
 
 [Zurück zur README](../README.md)
