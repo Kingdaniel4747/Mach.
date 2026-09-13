@@ -35,6 +35,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
     private int durationMinutes = 5;
     private boolean scanning;
     private boolean completed;
+    private boolean resumed;
     private ScanPulseView pulse;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -155,6 +156,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
 
     @Override protected void onResume() {
         super.onResume();
+        resumed = true;
         if (completed) return;
         String current = BlockPolicy.reason(this, blockedPackage);
         if (!current.equals(blockReason)) {
@@ -162,12 +164,28 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
             if (current.isEmpty()) { returnToBlockedApp(); return; }
             selectReason(current); buildUi();
         }
-        enableReader();handler.removeCallbacks(checkExpiry);handler.post(checkExpiry);
+        enableReader();
+        // Accessibility starts this activity immediately after switching away from the blocked app.
+        // A second start after the window has focus is required on several NFC stacks.
+        handler.postDelayed(this::enableReader, 350L);
+        handler.removeCallbacks(checkExpiry);handler.post(checkExpiry);
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) handler.postDelayed(this::enableReader, 180L);
     }
 
     private void enableReader() {
-        if (scanning && !completed && "nfc".equals(method) && adapter != null && adapter.isEnabled()) adapter.enableReaderMode(this, this,
-            NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V, null);
+        if (!resumed || !scanning || completed || !"nfc".equals(method) || adapter == null || !adapter.isEnabled()) return;
+        try {
+            adapter.enableReaderMode(this, this, NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_NFC_B
+                | NfcAdapter.FLAG_READER_NFC_F | NfcAdapter.FLAG_READER_NFC_V | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
+                | NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS, null);
+            if (status != null) status.setText("NFC bereit · halte den angelernten Tag an die Rückseite");
+        } catch (RuntimeException error) {
+            if (status != null) status.setText("NFC konnte noch nicht starten · Bildschirm kurz antippen und erneut versuchen.");
+        }
     }
 
     private void beginScan() {
@@ -198,6 +216,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
     private void openQr() { startActivityForResult(new Intent(this,QrScannerActivity.class).putExtra("expectedToken",AppBlockerStore.qrToken(this)),QR_REQUEST); }
 
     @Override protected void onPause() {
+        resumed = false;
         handler.removeCallbacks(checkExpiry);
         if (adapter != null) adapter.disableReaderMode(this);
         super.onPause();

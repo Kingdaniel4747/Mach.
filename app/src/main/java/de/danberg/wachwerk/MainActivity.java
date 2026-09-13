@@ -518,7 +518,8 @@ public class MainActivity extends Activity {
                 NfcAdapter adapter = NfcAdapter.getDefaultAdapter(MainActivity.this);
                 if (adapter == null) { Toast.makeText(MainActivity.this, "Dieses Handy unterstützt kein NFC.", Toast.LENGTH_LONG).show(); return; }
                 pendingNfcPurpose = "blocker".equals(purpose) ? "blocker" : "alarm";
-                startActivityForResult(new Intent(MainActivity.this, NfcTagActivity.class).putExtra("mode", "enroll"), NFC_ENROLL_REQUEST);
+                startActivityForResult(new Intent(MainActivity.this, NfcTagActivity.class)
+                    .putExtra("mode", "enroll").putExtra("purpose", pendingNfcPurpose), NFC_ENROLL_REQUEST);
             });
         }
 

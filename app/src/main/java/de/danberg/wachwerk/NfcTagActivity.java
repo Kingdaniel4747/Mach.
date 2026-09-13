@@ -30,6 +30,7 @@ public class NfcTagActivity extends Activity implements NfcAdapter.ReaderCallbac
     private NfcAdapter adapter;
     private TextView status;
     private boolean enroll;
+    private String purpose;
     private String expected;
     private volatile boolean busy;
     private ScanPulseView pulse;
@@ -39,6 +40,7 @@ public class NfcTagActivity extends Activity implements NfcAdapter.ReaderCallbac
         super.onCreate(savedInstanceState);
         palette = UiPalette.from(this);
         enroll = "enroll".equals(getIntent().getStringExtra("mode"));
+        purpose = getIntent().getStringExtra("purpose");
         expected = getIntent().getStringExtra("expectedToken");
         adapter = NfcAdapter.getDefaultAdapter(this);
         buildUi();
@@ -89,6 +91,10 @@ public class NfcTagActivity extends Activity implements NfcAdapter.ReaderCallbac
             String label;
             if (enroll) {
                 token = uidToken(tag);
+                // Save immediately, before the activity finishes. This avoids losing a newly
+                // learned tag if Android recreates the activity while the tag is still held.
+                WakeKeyStore.setToken(getApplicationContext(), token);
+                if ("blocker".equals(purpose)) AppBlockerStore.setToken(getApplicationContext(), token);
                 boolean cleaned = removeLegacyAppRecord(tag);
                 label = cleaned ? "NFC-Tag angelernt und alten MACH-Eintrag entfernt" : "NFC-Tag erfolgreich angelernt";
             } else {
