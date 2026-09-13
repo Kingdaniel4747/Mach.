@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCallback {
     private static final int QR_REQUEST = 5510;
+    private static final int NFC_REQUEST = 5511;
     private NfcAdapter adapter;
     private TextView status;
     private String method;
@@ -36,6 +37,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
     private boolean scanning;
     private boolean completed;
     private boolean resumed;
+    private boolean nfcScannerOpen;
     private ScanPulseView pulse;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -53,7 +55,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);setIntent(intent);
-        blockedPackage=intent.getStringExtra("blockedPackage");completed=false;scanning=false;nfcBusy=false;
+        blockedPackage=intent.getStringExtra("blockedPackage");completed=false;scanning=false;nfcBusy=false;nfcScannerOpen=false;
         selectReason(BlockPolicy.reason(this,blockedPackage));buildUi();
     }
     private final Runnable checkExpiry=new Runnable() {
@@ -168,6 +170,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         // Accessibility starts this activity immediately after switching away from the blocked app.
         // A second start after the window has focus is required on several NFC stacks.
         handler.postDelayed(this::enableReader, 350L);
+        if (scanning && "nfc".equals(method) && !nfcScannerOpen) handler.postDelayed(this::openNfcScanner, 220L);
         handler.removeCallbacks(checkExpiry);handler.post(checkExpiry);
     }
 
@@ -211,9 +214,21 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         if ("qr".equals(method)) {
             Button retry=smallButton("Kamera erneut öffnen");retry.setOnClickListener(v->openQr());LinearLayout.LayoutParams rp=match(dp(54));rp.topMargin=dp(20);root.addView(retry,rp);
         }
-        android.widget.ScrollView scroll=new android.widget.ScrollView(this);scroll.setFillViewport(true);scroll.addView(root);setContentView(scroll);enableReader();if("qr".equals(method))openQr();
+        android.widget.ScrollView scroll=new android.widget.ScrollView(this);scroll.setFillViewport(true);scroll.addView(root);setContentView(scroll);
+        enableReader();
+        if("qr".equals(method)) openQr();
+        else if("nfc".equals(method)) handler.postDelayed(this::openNfcScanner, 180L);
     }
     private void openQr() { startActivityForResult(new Intent(this,QrScannerActivity.class).putExtra("expectedToken",AppBlockerStore.qrToken(this)),QR_REQUEST); }
+    private void openNfcScanner() {
+        if (!resumed || nfcScannerOpen || completed || !scanning || !"nfc".equals(method)) return;
+        String expected = AppBlockerStore.token(this);
+        if (expected.isEmpty()) expected = WakeKeyStore.token(this);
+        nfcScannerOpen = true;
+        startActivityForResult(new Intent(this, NfcTagActivity.class)
+            .putExtra("mode", expected.isEmpty() ? "enroll" : "scan")
+            .putExtra("expectedToken", expected).putExtra("purpose", "blocker"), NFC_REQUEST);
+    }
 
     @Override protected void onPause() {
         resumed = false;
@@ -239,7 +254,19 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == QR_REQUEST && resultCode == RESULT_OK) unlock();
+        if (requestCode == NFC_REQUEST) {
+            nfcScannerOpen = false;
+            if (resultCode == RESULT_OK && data != null) {
+                String token = data.getStringExtra("token");
+                if (AppBlockerStore.token(this).isEmpty() && token != null && !token.isEmpty()) AppBlockerStore.setToken(this, token);
+                if (WakeKeyStore.token(this).isEmpty() && token != null && !token.isEmpty()) WakeKeyStore.setToken(this, token);
+                completeUnlock(null);
+            } else if (status != null) {
+                status.setText("NFC-Scan abgebrochen · halte den Tag erneut an die Rückseite.");
+                enableReader();
+            }
+        }
+        else if (requestCode == QR_REQUEST && resultCode == RESULT_OK) unlock();
         else if (requestCode == QR_REQUEST) status.setText("QR-Code noch nicht erkannt · erneut versuchen.");
     }
 
