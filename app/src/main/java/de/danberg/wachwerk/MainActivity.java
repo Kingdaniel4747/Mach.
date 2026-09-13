@@ -11,6 +11,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ComponentName;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -69,6 +70,7 @@ public class MainActivity extends Activity {
     public static final String BEDTIME_CHANNEL = "wachwerk_bedtime";
     public static final String GENTLE_CHANNEL = "wachwerk_gentle_wake";
     public static final String TODO_CHANNEL = "wachwerk_todo";
+    public static final String QUEST_CHANNEL = "wachwerk_quest";
     public static final String FOCUS_CHANNEL = "wachwerk_focus_timer";
     public static final String FOCUS_PROGRESS_CHANNEL = "wachwerk_focus_progress";
     public static final String LIMIT_CHANNEL = "wachwerk_app_limits";
@@ -281,9 +283,10 @@ public class MainActivity extends Activity {
         String requested = null;
         if (getIntent().getBooleanExtra("openBlocker", false)) requested = "blocker";
         else if (getIntent().getBooleanExtra("openTodos", false)) requested = "todos";
+        else if (getIntent().getBooleanExtra("openQuests", false)) requested = "quests";
         else if (getIntent().getBooleanExtra("openAlarms", false)) requested = "alarms";
         if (requested == null) return;
-        getIntent().removeExtra("openBlocker"); getIntent().removeExtra("openTodos"); getIntent().removeExtra("openAlarms");
+        getIntent().removeExtra("openBlocker"); getIntent().removeExtra("openTodos"); getIntent().removeExtra("openQuests"); getIntent().removeExtra("openAlarms");
         String screen = requested;
         handler.post(() -> webView.evaluateJavascript(
             "window.dispatchEvent(new CustomEvent('mach-open-screen',{detail:{screen:'" + screen + "'}}));", null));
@@ -329,6 +332,10 @@ public class MainActivity extends Activity {
         todos.enableVibration(true);
         manager.createNotificationChannel(todos);
 
+        NotificationChannel quests = new NotificationChannel(QUEST_CHANNEL, "Tagesquests", NotificationManager.IMPORTANCE_DEFAULT);
+        quests.setDescription("Erinnert an die noch offene Tagesquest");
+        manager.createNotificationChannel(quests);
+
         NotificationChannel focus = new NotificationChannel(FOCUS_CHANNEL, "Fokus-Timer", NotificationManager.IMPORTANCE_HIGH);
         focus.setDescription("Klingelt am Ende einer Fokus- oder Pausenphase");
         focus.enableVibration(true);
@@ -355,7 +362,6 @@ public class MainActivity extends Activity {
             if (json != null && json.contains("\"enabled\":true") && !AlarmScheduler.canScheduleExact(MainActivity.this)) {
                 handler.post(MainActivity.this::promptExactAlarmPermission);
             }
-            if (json != null && json.contains("\"enabled\":true")) handler.post(MainActivity.this::promptFullScreenPermission);
         }
 
         @JavascriptInterface
@@ -386,6 +392,13 @@ public class MainActivity extends Activity {
             if (timesJson != null && !timesJson.equals("[]") && !AlarmScheduler.canScheduleExact(MainActivity.this)) {
                 handler.post(MainActivity.this::promptExactAlarmPermission);
             }
+        }
+
+        @JavascriptInterface
+        public void syncQuestReminder(boolean enabled, String time, String title, String detail, String date, boolean done) {
+            QuestReminderScheduler.sync(getApplicationContext(), enabled, time, title, detail, date, done);
+            if (enabled) handler.post(MainActivity.this::requestNotificationPermission);
+            if (enabled && !AlarmScheduler.canScheduleExact(MainActivity.this)) handler.post(MainActivity.this::promptExactAlarmPermission);
         }
 
         @JavascriptInterface
@@ -578,7 +591,6 @@ public class MainActivity extends Activity {
             handler.post(MainActivity.this::requestNotificationPermission);
             dispatchFocusState();
             if (!AlarmScheduler.canScheduleExact(MainActivity.this)) handler.post(MainActivity.this::promptExactAlarmPermission);
-            handler.post(MainActivity.this::promptFullScreenPermission);
         }
 
         @JavascriptInterface
@@ -759,13 +771,22 @@ public class MainActivity extends Activity {
         if (fullScreenPromptShown || isFinishing() || Build.VERSION.SDK_INT < 34) return;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager.canUseFullScreenIntent()) return;
+        String version = installedVersionKey();
+        SharedPreferences preferences = getSharedPreferences("wachwerk_native", MODE_PRIVATE);
+        if (version.equals(preferences.getString("full_screen_prompt_version", ""))) return;
         fullScreenPromptShown = true;
+        preferences.edit().putString("full_screen_prompt_version", version).apply();
         new AlertDialog.Builder(this)
             .setTitle("Wecker auf dem Sperrbildschirm")
             .setMessage("Erlaube MACH einmal Vollbild-Benachrichtigungen. Nur so können Wecker und sanftes Licht den ausgeschalteten Bildschirm zuverlässig einschalten.")
             .setPositiveButton("Erlauben", (dialog, which) -> startActivity(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + getPackageName()))))
             .setNegativeButton("Später", null)
             .show();
+    }
+
+    private String installedVersionKey() {
+        try { return String.valueOf(getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode()); }
+        catch (Exception ignored) { return "unknown"; }
     }
 
     @Override

@@ -13,6 +13,7 @@ public class BootReceiver extends BroadcastReceiver {
                 && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) return;
         AlarmScheduler.restoreAll(context);
         TodoReminderScheduler.restore(context);
+        QuestReminderScheduler.restore(context);
         FocusTimerScheduler.restore(context);
     }
 }
