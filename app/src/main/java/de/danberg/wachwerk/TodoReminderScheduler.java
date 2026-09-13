@@ -18,6 +18,7 @@ public final class TodoReminderScheduler {
     private static final String PREFS = "wachwerk_native";
     private static final String KEY_TODOS = "todos_json";
     private static final String KEY_CODES = "todo_codes";
+    private static final String KEY_DAILY_TIMES = "todo_daily_times";
 
     private TodoReminderScheduler() {}
 
@@ -33,6 +34,15 @@ public final class TodoReminderScheduler {
     public static void restore(Context context) {
         SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         scheduleAll(context, preferences.getString(KEY_TODOS, "[]"));
+    }
+
+    public static void syncDailyReminders(Context context, String todosJson, String timesJson) {
+        if (todosJson == null || todosJson.isBlank()) todosJson = "[]";
+        if (timesJson == null || timesJson.isBlank()) timesJson = "[]";
+        SharedPreferences preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        preferences.edit().putString(KEY_TODOS, todosJson).putString(KEY_DAILY_TIMES, timesJson).apply();
+        cancel(context, preferences.getStringSet(KEY_CODES, new HashSet<>()));
+        scheduleAll(context, todosJson);
     }
 
     private static void scheduleAll(Context context, String json) {
@@ -59,6 +69,26 @@ public final class TodoReminderScheduler {
                 catch (SecurityException denied) { manager.set(AlarmManager.RTC_WAKEUP, at, pending); }
                 codes.add(String.valueOf(code));
             }
+            JSONArray dailyTimes = new JSONArray(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DAILY_TIMES, "[]"));
+            for (int index = 0; index < dailyTimes.length(); index++) {
+                String time = dailyTimes.optString(index, "");
+                if (!time.matches("(?:[01]\\d|2[0-3]):[0-5]\\d")) continue;
+                int code = 65000 + Math.abs(("daily-" + time).hashCode() % 1000);
+                java.util.Calendar calendar = java.util.Calendar.getInstance();
+                String[] parts = time.split(":");
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, Integer.parseInt(parts[0]));
+                calendar.set(java.util.Calendar.MINUTE, Integer.parseInt(parts[1]));
+                calendar.set(java.util.Calendar.SECOND, 0); calendar.set(java.util.Calendar.MILLISECOND, 0);
+                if (calendar.getTimeInMillis() <= System.currentTimeMillis() + 1_500L) calendar.add(java.util.Calendar.DAY_OF_YEAR, 1);
+                Intent intent = new Intent(context, TodoReminderReceiver.class)
+                    .setAction("de.danberg.wachwerk.TODO.DAILY." + code).putExtra("daily", true);
+                PendingIntent pending = PendingIntent.getBroadcast(context, code, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                try { manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending); }
+                catch (SecurityException denied) { manager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending); }
+                codes.add(String.valueOf(code));
+            }
         } catch (Exception ignored) {
             // Invalid local reminder data must not affect the remaining tasks.
         }
@@ -71,7 +101,7 @@ public final class TodoReminderScheduler {
             try {
                 int code = Integer.parseInt(raw);
                 PendingIntent pending = PendingIntent.getBroadcast(context, code,
-                    new Intent(context, TodoReminderReceiver.class).setAction("de.danberg.wachwerk.TODO." + code),
+                    new Intent(context, TodoReminderReceiver.class).setAction(code >= 65000 ? "de.danberg.wachwerk.TODO.DAILY." + code : "de.danberg.wachwerk.TODO." + code),
                     PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
                 if (pending != null) manager.cancel(pending);
                 context.getSystemService(android.app.NotificationManager.class).cancel(54000 + Math.max(0, code - 52000));

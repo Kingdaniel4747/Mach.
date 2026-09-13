@@ -380,6 +380,15 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void syncTodoDailyReminders(String todosJson, String timesJson) {
+            TodoReminderScheduler.syncDailyReminders(getApplicationContext(), todosJson, timesJson);
+            if (timesJson != null && !timesJson.equals("[]")) handler.post(MainActivity.this::requestNotificationPermission);
+            if (timesJson != null && !timesJson.equals("[]") && !AlarmScheduler.canScheduleExact(MainActivity.this)) {
+                handler.post(MainActivity.this::promptExactAlarmPermission);
+            }
+        }
+
+        @JavascriptInterface
         public void syncSettings(String json) {
             try { JSONObject data = new JSONObject(json); if (WakeKeyStore.token(getApplicationContext()).isEmpty()) WakeKeyStore.setToken(getApplicationContext(), data.optString("alarmNfcToken")); } catch (Exception ignored) {}
             NativeState.saveSettings(getApplicationContext(), json);
