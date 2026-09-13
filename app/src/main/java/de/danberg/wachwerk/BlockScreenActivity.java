@@ -170,7 +170,6 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         // Accessibility starts this activity immediately after switching away from the blocked app.
         // A second start after the window has focus is required on several NFC stacks.
         handler.postDelayed(this::enableReader, 350L);
-        if (scanning && "nfc".equals(method) && !nfcScannerOpen) handler.postDelayed(this::openNfcScanner, 220L);
         handler.removeCallbacks(checkExpiry);handler.post(checkExpiry);
     }
 
@@ -204,6 +203,11 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         if ("nfc".equals(method) && (adapter == null || !adapter.isEnabled())) {
             status.setText(adapter == null ? "Dieses Handy unterstützt kein NFC" : "Bitte NFC in den Schnelleinstellungen einschalten");
         }
+        if ("nfc".equals(method) && adapter != null && adapter.isEnabled()) {
+            Button scanner = smallButton("NFC-Scanner öffnen");
+            scanner.setOnClickListener(v -> openNfcScanner());
+            LinearLayout.LayoutParams scannerParams = match(dp(54)); scannerParams.topMargin = dp(18); root.addView(scanner, scannerParams);
+        }
         if (limitMode || scheduleMode) addUnlockDuration(root);
         int reward = AppBlockerStore.rewardMinutes(this);
         if ((limitMode || scheduleMode) && reward > 0) {
@@ -217,7 +221,6 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
         android.widget.ScrollView scroll=new android.widget.ScrollView(this);scroll.setFillViewport(true);scroll.addView(root);setContentView(scroll);
         enableReader();
         if("qr".equals(method)) openQr();
-        else if("nfc".equals(method)) handler.postDelayed(this::openNfcScanner, 180L);
     }
     private void openQr() { startActivityForResult(new Intent(this,QrScannerActivity.class).putExtra("expectedToken",AppBlockerStore.qrToken(this)),QR_REQUEST); }
     private void openNfcScanner() {
@@ -262,7 +265,7 @@ public class BlockScreenActivity extends Activity implements NfcAdapter.ReaderCa
                 if (WakeKeyStore.token(this).isEmpty() && token != null && !token.isEmpty()) WakeKeyStore.setToken(this, token);
                 completeUnlock(null);
             } else if (status != null) {
-                status.setText("NFC-Scan abgebrochen · halte den Tag erneut an die Rückseite.");
+                status.setText("NFC-Scan abgebrochen · du bleibst im Tageslimit-Fenster.");
                 enableReader();
             }
         }
