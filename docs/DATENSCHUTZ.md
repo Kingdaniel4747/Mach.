@@ -1,6 +1,6 @@
 # Daten & Berechtigungen
 
-MACH ist ohne Benutzerkonto und ohne eigenen Cloud-Dienst konzipiert. In der APK ist keine `INTERNET`-Berechtigung deklariert. Die lokale Oberfläche enthält keine Werbe- oder Analyse-SDKs.
+MACH ist ohne Benutzerkonto und ohne eigenen Cloud-Dienst konzipiert. Die lokale Oberfläche enthält keine Werbe- oder Analyse-SDKs. Beim App-Start fragt MACH ausschließlich die öffentliche GitHub-Release-API nach einer neueren Version ab. Erst nach „Jetzt aktualisieren“ wird die veröffentlichte APK über Androids Download-Manager geladen; die Installation bestätigt der Nutzer im Android-Systemdialog.
 
 ## Was wird gespeichert?
 

@@ -98,6 +98,7 @@ public class MainActivity extends Activity {
     private volatile boolean installedAppsLoading;
     private String pendingBackupJson = "";
     private boolean schedulesRestored;
+    private boolean updateCheckStarted;
     private boolean lastExactPermission;
 
     @Override
@@ -151,6 +152,7 @@ public class MainActivity extends Activity {
                     dispatchPermissionState();
                     dispatchInstalledApps();
                     dispatchRequestedScreen();
+                    if (!updateCheckStarted) { updateCheckStarted = true; handler.postDelayed(() -> UpdateManager.check(MainActivity.this), 900L); }
                 }
             }
 
@@ -215,6 +217,7 @@ public class MainActivity extends Activity {
         dispatchFocusState();
         dispatchPermissionState();
         dispatchRequestedScreen();
+        UpdateManager.resumeInstall(this);
     }
 
     @Override
