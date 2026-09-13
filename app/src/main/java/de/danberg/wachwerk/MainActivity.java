@@ -785,7 +785,7 @@ public class MainActivity extends Activity {
     }
 
     private String installedVersionKey() {
-        try { return String.valueOf(getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode()); }
+        try { return String.valueOf(getPackageManager().getPackageInfo(getPackageName(), 0).versionCode); }
         catch (Exception ignored) { return "unknown"; }
     }
 
